@@ -23,39 +23,33 @@ export default function Home() {
   const router = useRouter()
   const [proLoading, setProLoading] = useState(false)
   const [freeLoading, setFreeLoading] = useState(false)
+  // Driven by real backend: shown after a free reading completes
+  const [showUpgradeCTA, setShowUpgradeCTA] = useState(false)
+  // Driven by real backend: shown when 402 free_limit is hit
+  const [showFreeLimitGate, setShowFreeLimitGate] = useState(false)
 
-  // TODO: Replace with real backend check e.g. !user.isPro && user.readingCount >= 1
-  const showUpgradeCTA = true
-
-  // ── Pro checkout: goes straight to Stripe if logged in,
-  //    or to /login?next=checkout which the callback handles automatically ──
   async function handleProCheckout() {
     setProLoading(true)
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession()
-
       if (!session?.access_token) {
         router.push('/login?next=checkout')
         return
       }
-
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': 'Bearer ' + session.access_token,
         },
       })
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         alert((err as any).message || 'Something went wrong. Please try again.')
         return
       }
-
       const { url } = await res.json()
       window.location.href = url
-
     } catch (err: any) {
       alert(err.message || 'Something went wrong. Please try again.')
     } finally {
@@ -160,11 +154,15 @@ export default function Home() {
       if (errorEl) errorEl.style.display = 'none'
       if (btn) btn.textContent = 'Get my Ick Score →'
       window.setSubmitLoading(false)
+      // Reset React-controlled states
+      setShowFreeLimitGate(false)
+      setShowUpgradeCTA(false)
       const form = document.getElementById('ickForm')
       if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
 
-    window.renderResult = function(data: any) {
+    // ── renderResult: maps /api/analyze `result` object to existing UI elements ──
+    window.renderResult = function(result: any) {
       const set = (id: string, val: string) => {
         const el = document.getElementById(id)
         if (el) el.textContent = val
@@ -173,50 +171,123 @@ export default function Home() {
         const el = document.getElementById(id) as HTMLElement | null
         if (el) el.style.width = val
       }
-      const setDisplay = (id: string, val: string) => {
-        const el = document.getElementById(id)
-        if (el) el.style.display = val
+
+      const score: number = typeof result.ick_score === 'number' ? result.ick_score : 0
+      const watchItems: string[] = Array.isArray(result.what_to_watch_for_next) ? result.what_to_watch_for_next : []
+      const pettyItems: string[] = Array.isArray(result.petty_icks_for_fun) ? result.petty_icks_for_fun : []
+
+      // Score meter
+      set('resultScoreLabel', score + ' / 100')
+      setWidth('resultScoreFill', score + '%')
+
+      // Chips — derive verdict from score since API does not return one
+      set('resultCategory', result.category ?? '—')
+      set('resultPattern', result.pattern ?? '—')
+      set('resultFlags', watchItems.length ? watchItems.length + ' identified' : '—')
+      set('resultVerdict', score >= 70 ? 'Trust the ick' : score >= 40 ? 'Proceed with caution' : 'Probably fine')
+
+      // Text blocks — API field names
+      set('resultBlunt', result.blunt_take ?? '—')
+      set('resultWhy', result.why_it_feels_bad ?? '—')
+      set('resultReality', result.reality_check ?? '—')
+
+      // Share
+      set('shareScore', String(score))
+
+      // What to watch for — injected into resultWatchWrap / resultWatchList
+      const watchWrap = document.getElementById('resultWatchWrap')
+      const watchList = document.getElementById('resultWatchList')
+      if (watchWrap && watchList) {
+        if (watchItems.length) {
+          watchList.innerHTML = watchItems.map(function(item: string) {
+            return '<li style="font-size:13px;color:var(--chrome);padding:6px 0;border-bottom:1px solid var(--border);font-weight:300;line-height:1.55;">' + item + '</li>'
+          }).join('')
+          watchWrap.style.display = 'block'
+        } else {
+          watchWrap.style.display = 'none'
+        }
       }
-      set('resultScoreLabel', `${data.score} / 100`)
-      setWidth('resultScoreFill', `${data.score}%`)
-      set('resultCategory', data.category)
-      set('resultPattern', data.pattern)
-      set('resultFlags', `${data.redFlagCount} identified`)
-      set('resultVerdict', data.verdict)
-      set('resultBlunt', data.bluntTake)
-      set('resultWhy', data.whyItFeelsBad)
-      set('resultReality', data.realityCheck)
-      set('shareScore', String(data.score))
-      setDisplay('proGate', data.isProGated ? 'block' : 'none')
+
+      // Petty icks — injected into resultPettyWrap / resultPettyList
+      const pettyWrap = document.getElementById('resultPettyWrap')
+      const pettyList = document.getElementById('resultPettyList')
+      if (pettyWrap && pettyList) {
+        if (pettyItems.length) {
+          pettyList.innerHTML = pettyItems.map(function(item: string) {
+            return '<li style="font-size:13px;color:var(--muted);padding:5px 0;font-weight:300;font-style:italic;">' + item + '</li>'
+          }).join('')
+          pettyWrap.style.display = 'block'
+        } else {
+          pettyWrap.style.display = 'none'
+        }
+      }
+
       window.showState('result')
     }
 
+    // ── handleSubmit: wired to POST /api/analyze with Supabase auth ──
     window.handleSubmit = async function(e: any) {
       e.preventDefault()
+
       const ta = document.getElementById('situation') as HTMLTextAreaElement | null
       const errorEl = document.getElementById('inputError')
       if (!ta) return
-      const situation = ta.value.trim()
-      if (situation.length < 30) {
+
+      const input_text = ta.value.trim()
+
+      if (input_text.length < 30) {
         if (errorEl) errorEl.style.display = 'block'
         return
       }
       if (errorEl) errorEl.style.display = 'none'
+
+      // Auth check — redirect to login if no session
+      const { data: { session } } = await supabaseBrowser.auth.getSession()
+      if (!session?.access_token) {
+        router.push('/login')
+        return
+      }
+
       window.setSubmitLoading(true)
       window.showState('loading')
+      setShowFreeLimitGate(false)
+      setShowUpgradeCTA(false)
+
       try {
         const response = await fetch('/api/analyze', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ situation, tone: window.selectedTone }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token,
+          },
+          body: JSON.stringify({ input_text, tone: window.selectedTone }),
         })
+
+        // 402 = free limit hit → show upgrade gate, skip error state
+        if (response.status === 402) {
+          const data = await response.json().catch(() => ({}))
+          if (data?.blocked && data?.reason === 'free_limit') {
+            setShowFreeLimitGate(true)
+            window.showState('result')
+            return
+          }
+        }
+
         if (!response.ok) {
           const err = await response.json().catch(() => ({}))
-          throw new Error((err as any).message || `Server error ${response.status}`)
+          throw new Error((err as any).error || 'Server error ' + response.status)
         }
+
         const data = await response.json()
-        if (typeof data.score !== 'number') throw new Error('Unexpected response from API.')
-        window.renderResult(data)
+        if (!data.result) throw new Error('Unexpected response from server.')
+
+        window.renderResult(data.result)
+
+        // Show post-reading upgrade nudge for free users
+        if (data.plan === 'free') {
+          setShowUpgradeCTA(true)
+        }
+
       } catch (err: any) {
         const msgEl = document.getElementById('errorMessage')
         if (msgEl) msgEl.textContent = err.message || 'Something went wrong. Try again.'
@@ -229,7 +300,7 @@ export default function Home() {
     window.copyShareText = function() {
       const scoreEl = document.getElementById('shareScore')
       const score = scoreEl ? scoreEl.textContent : '—'
-      navigator.clipboard.writeText(`My Ick Score: ${score} — theickdetector.com`).then(() => {
+      navigator.clipboard.writeText('My Ick Score: ' + score + ' — theickdetector.com').then(() => {
         const btn = document.querySelector('.share-btn') as HTMLButtonElement | null
         if (!btn) return
         btn.textContent = 'Copied!'
@@ -421,92 +492,122 @@ export default function Home() {
             <p id="errorMessage">Something went wrong. Try again in a moment.</p>
             <button className="btn-secondary" style={{marginTop:'16px', width:'auto', padding:'10px 24px'}} onClick={() => window.resetForm()}>Try again</button>
           </div>
+
           <div id="stateResult" style={{display:'none'}}>
-            <div className="result-share-bar">
-              <span id="shareLabel">My Ick Score: <strong id="shareScore">—</strong> — theickdetector.com</span>
-              <button className="share-btn" onClick={() => window.copyShareText()}>Copy</button>
-            </div>
-            <div className="score-meter-wrap" style={{marginBottom:'20px'}}>
-              <div className="score-meter-top">
-                <span>Ick level</span>
-                <span id="resultScoreLabel" style={{color:'var(--pink)', fontWeight:'500'}}>— / 100</span>
-              </div>
-              <div className="score-meter-bar">
-                <div id="resultScoreFill" className="score-meter-fill" style={{width:'0%'}}></div>
-              </div>
-            </div>
-            <div className="result-grid">
-              <div className="result-chip"><div className="result-chip-label">Category</div><div id="resultCategory" className="result-chip-value pink">—</div></div>
-              <div className="result-chip"><div className="result-chip-label">Pattern</div><div id="resultPattern" className="result-chip-value purple">—</div></div>
-              <div className="result-chip"><div className="result-chip-label">Red flags</div><div id="resultFlags" className="result-chip-value">—</div></div>
-              <div className="result-chip"><div className="result-chip-label">Verdict</div><div id="resultVerdict" className="result-chip-value pink">—</div></div>
-            </div>
-            <div className="result-blunt">
-              <div className="result-blunt-label">Blunt take</div>
-              <div id="resultBlunt" className="result-blunt-text">—</div>
-            </div>
-            <div className="result-blunt" style={{marginTop:'12px', background:'rgba(139,92,246,0.06)', borderColor:'rgba(139,92,246,0.2)'}}>
-              <div className="result-blunt-label" style={{color:'var(--purple)'}}>Why it feels bad</div>
-              <div id="resultWhy" className="result-blunt-text">—</div>
-            </div>
-            <div className="result-reality" style={{marginTop:'12px'}}>
-              <div className="result-reality-label">Reality check</div>
-              <div id="resultReality" className="result-reality-text">—</div>
-            </div>
 
-            <div id="proGate" className="pro-gate" style={{display:'none'}}>
-              <p className="pro-gate-text">You have used your free reading this week.</p>
-              <p className="pro-gate-sub">Upgrade to Pro for unlimited readings, full pattern tracking, and history.</p>
-              <button className="btn-primary-full" onClick={handleProCheckout} disabled={proLoading}>
-                {proLoading ? 'Redirecting…' : 'Get Pro — $6.99/month'}
-              </button>
-              <p style={{textAlign:'center', fontSize:'12px', color:'var(--muted)', marginTop:'10px'}}>Cancel anytime. No guilt trip.</p>
-            </div>
-
-            {/* TODO: Replace showUpgradeCTA with real backend check */}
-            {showUpgradeCTA && (
-              <div style={{
-                marginTop: '24px',
-                background: 'rgba(255,47,146,0.04)',
-                border: '1px solid rgba(255,47,146,0.18)',
-                borderRadius: '12px',
-                padding: '24px 20px',
-                textAlign: 'center',
-              }}>
-                <p style={{
-                  fontFamily: 'Playfair Display, serif',
-                  fontSize: '18px',
-                  fontWeight: '700',
-                  marginBottom: '8px',
-                  letterSpacing: '-0.2px',
-                }}>
-                  Want deeper breakdowns?
-                </p>
-                <p style={{
-                  color: 'var(--chrome)',
-                  fontSize: '13px',
-                  fontWeight: '300',
-                  lineHeight: '1.6',
-                  maxWidth: '340px',
-                  margin: '0 auto 20px',
-                }}>
-                  Unlimited readings, full pattern breakdowns, and reality checks — whenever you need them.
-                </p>
-                <button
-                  className="btn-primary-full"
-                  onClick={handleProCheckout}
-                  disabled={proLoading}
-                  style={{maxWidth: '280px', margin: '0 auto'}}
-                >
-                  {proLoading ? 'Redirecting…' : 'Go Pro — $6.99/mo'}
+            {/* ── FREE LIMIT GATE: replaces result UI when 402 blocked:true is returned ── */}
+            {showFreeLimitGate ? (
+              <div className="pro-gate">
+                <p className="pro-gate-text">You have used your free reading this week.</p>
+                <p className="pro-gate-sub">Come back next Monday, or go Pro for unlimited readings whenever you need them.</p>
+                <button className="btn-primary-full" onClick={handleProCheckout} disabled={proLoading}>
+                  {proLoading ? 'Redirecting…' : 'Go Pro — $6.99/month'}
                 </button>
-                <p style={{fontSize:'11px', color:'var(--muted)', marginTop:'10px'}}>
-                  Cancel anytime. No pressure.
-                </p>
+                <p style={{textAlign:'center', fontSize:'12px', color:'var(--muted)', marginTop:'10px'}}>Cancel anytime. No guilt trip.</p>
               </div>
-            )}
+            ) : (
+              <>
+                {/* ── RESULT UI: unchanged layout, new IDs wired to API fields ── */}
+                <div className="result-share-bar">
+                  <span id="shareLabel">My Ick Score: <strong id="shareScore">—</strong> — theickdetector.com</span>
+                  <button className="share-btn" onClick={() => window.copyShareText()}>Copy</button>
+                </div>
+                <div className="score-meter-wrap" style={{marginBottom:'20px'}}>
+                  <div className="score-meter-top">
+                    <span>Ick level</span>
+                    <span id="resultScoreLabel" style={{color:'var(--pink)', fontWeight:'500'}}>— / 100</span>
+                  </div>
+                  <div className="score-meter-bar">
+                    <div id="resultScoreFill" className="score-meter-fill" style={{width:'0%'}}></div>
+                  </div>
+                </div>
+                <div className="result-grid">
+                  <div className="result-chip"><div className="result-chip-label">Category</div><div id="resultCategory" className="result-chip-value pink">—</div></div>
+                  <div className="result-chip"><div className="result-chip-label">Pattern</div><div id="resultPattern" className="result-chip-value purple">—</div></div>
+                  <div className="result-chip"><div className="result-chip-label">Red flags</div><div id="resultFlags" className="result-chip-value">—</div></div>
+                  <div className="result-chip"><div className="result-chip-label">Verdict</div><div id="resultVerdict" className="result-chip-value pink">—</div></div>
+                </div>
 
-            <button className="btn-secondary" style={{marginTop:'20px'}} onClick={() => window.resetForm()}>New reading</button>
+                {/* blunt_take */}
+                <div className="result-blunt">
+                  <div className="result-blunt-label">Blunt take</div>
+                  <div id="resultBlunt" className="result-blunt-text">—</div>
+                </div>
+
+                {/* why_it_feels_bad */}
+                <div className="result-blunt" style={{marginTop:'12px', background:'rgba(139,92,246,0.06)', borderColor:'rgba(139,92,246,0.2)'}}>
+                  <div className="result-blunt-label" style={{color:'var(--purple)'}}>Why it feels bad</div>
+                  <div id="resultWhy" className="result-blunt-text">—</div>
+                </div>
+
+                {/* reality_check */}
+                <div className="result-reality" style={{marginTop:'12px'}}>
+                  <div className="result-reality-label">Reality check</div>
+                  <div id="resultReality" className="result-reality-text">—</div>
+                </div>
+
+                {/* what_to_watch_for_next — hidden until renderResult populates it */}
+                <div id="resultWatchWrap" style={{display:'none', marginTop:'12px'}}>
+                  <div className="result-blunt" style={{background:'rgba(255,255,255,0.02)', borderColor:'var(--border)'}}>
+                    <div className="result-blunt-label">What to watch for next</div>
+                    <ul id="resultWatchList" style={{listStyle:'none', padding:0, margin:'8px 0 0'}}></ul>
+                  </div>
+                </div>
+
+                {/* petty_icks_for_fun — hidden until renderResult populates it */}
+                <div id="resultPettyWrap" style={{display:'none', marginTop:'12px'}}>
+                  <div className="result-blunt" style={{background:'rgba(255,255,255,0.02)', borderColor:'var(--border)'}}>
+                    <div className="result-blunt-label" style={{color:'var(--muted)'}}>Petty icks (just for fun)</div>
+                    <ul id="resultPettyList" style={{listStyle:'none', padding:0, margin:'8px 0 0'}}></ul>
+                  </div>
+                </div>
+
+                {/* Post-result upgrade nudge — shown for free users after a successful reading */}
+                {showUpgradeCTA && (
+                  <div style={{
+                    marginTop: '24px',
+                    background: 'rgba(255,47,146,0.04)',
+                    border: '1px solid rgba(255,47,146,0.18)',
+                    borderRadius: '12px',
+                    padding: '24px 20px',
+                    textAlign: 'center',
+                  }}>
+                    <p style={{
+                      fontFamily: 'Playfair Display, serif',
+                      fontSize: '18px',
+                      fontWeight: '700',
+                      marginBottom: '8px',
+                      letterSpacing: '-0.2px',
+                    }}>
+                      Want deeper breakdowns?
+                    </p>
+                    <p style={{
+                      color: 'var(--chrome)',
+                      fontSize: '13px',
+                      fontWeight: '300',
+                      lineHeight: '1.6',
+                      maxWidth: '340px',
+                      margin: '0 auto 20px',
+                    }}>
+                      Unlimited readings, full pattern breakdowns, and reality checks — whenever you need them.
+                    </p>
+                    <button
+                      className="btn-primary-full"
+                      onClick={handleProCheckout}
+                      disabled={proLoading}
+                      style={{maxWidth: '280px', margin: '0 auto'}}
+                    >
+                      {proLoading ? 'Redirecting…' : 'Go Pro — $6.99/mo'}
+                    </button>
+                    <p style={{fontSize:'11px', color:'var(--muted)', marginTop:'10px'}}>
+                      Cancel anytime. No pressure.
+                    </p>
+                  </div>
+                )}
+
+                <button className="btn-secondary" style={{marginTop:'20px'}} onClick={() => window.resetForm()}>New reading</button>
+              </>
+            )}
           </div>
         </div>
       </section>
