@@ -1,4 +1,5 @@
 'use client'
+
 declare global {
   interface Window {
     selectTone: (btn: HTMLElement) => void
@@ -14,22 +15,23 @@ declare global {
   }
 }
 
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 
 export default function Home() {
   useEffect(() => {
+
     // LIVE COUNTER
     const today = new Date()
     const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()
     const base = 847 + (daySeed % 397)
     const offset = Math.floor(Math.random() * 17) + 2
     let count = base + offset
-    const el = document.getElementById('liveCount')
-    if (el) {
-      el.textContent = count.toLocaleString()
+    const liveEl = document.getElementById('liveCount')
+    if (liveEl) {
+      liveEl.textContent = count.toLocaleString()
       setInterval(() => {
         count += 1
-        el.textContent = count.toLocaleString()
+        liveEl.textContent = count.toLocaleString()
       }, Math.floor(Math.random() * 14000) + 8000)
     }
 
@@ -40,34 +42,39 @@ export default function Home() {
     document.querySelectorAll('.fade-up').forEach(el => observer.observe(el))
 
     // TONE SELECTOR
-    window.selectTone = function(btn) {
+    window.selectTone = function(btn: HTMLElement) {
       document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'))
       btn.classList.add('active')
-      window.selectedTone = btn.dataset.tone || 'blunt'
+      window.selectedTone = (btn as HTMLElement & { dataset: DOMStringMap }).dataset.tone || 'blunt'
     }
     window.selectedTone = 'blunt'
 
     // CHAR COUNT + DYNAMIC BUTTON
     window.updateCount = function() {
-  const ta = document.getElementById('situation') as HTMLTextAreaElement | null
-  const btn = document.getElementById('submitBtn') as HTMLButtonElement | null
-  const countEl = document.getElementById('charCount')
-  if (!ta || !btn || !countEl) return
-  const len = ta.value.length
-  countEl.textContent = String(len)
-  btn.textContent = len > 0 ? 'Analyze this →' : 'Get my Ick Score →'
-}
-
-    // STATE MACHINE
-    window.showState = function(state) {
-      ['stateIdle', 'stateLoading', 'stateError', 'stateResult'].forEach(id => {
-        document.getElementById(id).style.display = 'none'
-      })
-      document.getElementById('state' + state.charAt(0).toUpperCase() + state.slice(1)).style.display = 'block'
+      const ta = document.getElementById('situation') as HTMLTextAreaElement | null
+      const btn = document.getElementById('submitBtn') as HTMLButtonElement | null
+      const countEl = document.getElementById('charCount')
+      if (!ta || !btn || !countEl) return
+      const len = ta.value.length
+      countEl.textContent = String(len)
+      btn.textContent = len > 0 ? 'Analyze this →' : 'Get my Ick Score →'
     }
 
-    window.setSubmitLoading = function(isLoading) {
-      const btn = document.getElementById('submitBtn')
+    // STATE MACHINE
+    window.showState = function(state: string) {
+      const ids = ['stateIdle', 'stateLoading', 'stateError', 'stateResult']
+      ids.forEach(id => {
+        const el = document.getElementById(id)
+        if (el) el.style.display = 'none'
+      })
+      const activeId = 'state' + state.charAt(0).toUpperCase() + state.slice(1)
+      const activeEl = document.getElementById(activeId)
+      if (activeEl) activeEl.style.display = 'block'
+    }
+
+    window.setSubmitLoading = function(isLoading: boolean) {
+      const btn = document.getElementById('submitBtn') as HTMLButtonElement | null
+      if (!btn) return
       btn.disabled = isLoading
       btn.textContent = isLoading ? 'Analyzing…' : 'Get my Ick Score →'
     }
@@ -75,40 +82,59 @@ export default function Home() {
     // RESET
     window.resetForm = function() {
       window.showState('idle')
-      document.getElementById('situation').value = ''
-      document.getElementById('charCount').textContent = '0'
-      document.getElementById('inputError').style.display = 'none'
-      document.getElementById('submitBtn').textContent = 'Get my Ick Score →'
+      const ta = document.getElementById('situation') as HTMLTextAreaElement | null
+      const countEl = document.getElementById('charCount')
+      const errorEl = document.getElementById('inputError')
+      const btn = document.getElementById('submitBtn') as HTMLButtonElement | null
+      if (ta) ta.value = ''
+      if (countEl) countEl.textContent = '0'
+      if (errorEl) errorEl.style.display = 'none'
+      if (btn) btn.textContent = 'Get my Ick Score →'
       window.setSubmitLoading(false)
-      document.getElementById('ickForm').scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const form = document.getElementById('ickForm')
+      if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
 
     // RENDER RESULT
-    window.renderResult = function(data) {
-      document.getElementById('resultScoreLabel').textContent = `${data.score} / 100`
-      document.getElementById('resultScoreFill').style.width = `${data.score}%`
-      document.getElementById('resultCategory').textContent = data.category
-      document.getElementById('resultPattern').textContent = data.pattern
-      document.getElementById('resultFlags').textContent = `${data.redFlagCount} identified`
-      document.getElementById('resultVerdict').textContent = data.verdict
-      document.getElementById('resultBlunt').textContent = data.bluntTake
-      document.getElementById('resultWhy').textContent = data.whyItFeelsBad
-      document.getElementById('resultReality').textContent = data.realityCheck
-      document.getElementById('shareScore').textContent = data.score
-      document.getElementById('proGate').style.display = data.isProGated ? 'block' : 'none'
+    window.renderResult = function(data: any) {
+      const set = (id: string, val: string) => {
+        const el = document.getElementById(id)
+        if (el) el.textContent = val
+      }
+      const setWidth = (id: string, val: string) => {
+        const el = document.getElementById(id) as HTMLElement | null
+        if (el) el.style.width = val
+      }
+      const setDisplay = (id: string, val: string) => {
+        const el = document.getElementById(id)
+        if (el) el.style.display = val
+      }
+      set('resultScoreLabel', `${data.score} / 100`)
+      setWidth('resultScoreFill', `${data.score}%`)
+      set('resultCategory', data.category)
+      set('resultPattern', data.pattern)
+      set('resultFlags', `${data.redFlagCount} identified`)
+      set('resultVerdict', data.verdict)
+      set('resultBlunt', data.bluntTake)
+      set('resultWhy', data.whyItFeelsBad)
+      set('resultReality', data.realityCheck)
+      set('shareScore', String(data.score))
+      setDisplay('proGate', data.isProGated ? 'block' : 'none')
       window.showState('result')
     }
 
     // FORM SUBMIT
-    window.handleSubmit = async function(e) {
+    window.handleSubmit = async function(e: any) {
       e.preventDefault()
-      const situation = document.getElementById('situation').value.trim()
+      const ta = document.getElementById('situation') as HTMLTextAreaElement | null
       const errorEl = document.getElementById('inputError')
+      if (!ta) return
+      const situation = ta.value.trim()
       if (situation.length < 30) {
-        errorEl.style.display = 'block'
+        if (errorEl) errorEl.style.display = 'block'
         return
       }
-      errorEl.style.display = 'none'
+      if (errorEl) errorEl.style.display = 'none'
       window.setSubmitLoading(true)
       window.showState('loading')
       try {
@@ -119,13 +145,14 @@ export default function Home() {
         })
         if (!response.ok) {
           const err = await response.json().catch(() => ({}))
-          throw new Error(err.message || `Server error ${response.status}`)
+          throw new Error((err as any).message || `Server error ${response.status}`)
         }
         const data = await response.json()
         if (typeof data.score !== 'number') throw new Error('Unexpected response from API.')
         window.renderResult(data)
-      } catch (err) {
-        document.getElementById('errorMessage').textContent = err.message || 'Something went wrong. Try again.'
+      } catch (err: any) {
+        const msgEl = document.getElementById('errorMessage')
+        if (msgEl) msgEl.textContent = err.message || 'Something went wrong. Try again.'
         window.showState('error')
       } finally {
         window.setSubmitLoading(false)
@@ -134,12 +161,17 @@ export default function Home() {
 
     // SHARE
     window.copyShareText = function() {
-      const score = document.getElementById('shareScore').textContent
+      const scoreEl = document.getElementById('shareScore')
+      const score = scoreEl ? scoreEl.textContent : '—'
       navigator.clipboard.writeText(`My Ick Score: ${score} — theickdetector.com`).then(() => {
-        const btn = document.querySelector('.share-btn')
+        const btn = document.querySelector('.share-btn') as HTMLButtonElement | null
+        if (!btn) return
         btn.textContent = 'Copied!'
         btn.classList.add('copied')
-        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 2000)
+        setTimeout(() => {
+          btn.textContent = 'Copy'
+          btn.classList.remove('copied')
+        }, 2000)
       })
     }
 
@@ -207,7 +239,7 @@ export default function Home() {
           <div className="step-card fade-up">
             <div className="step-num">01</div>
             <div className="step-title">Spill it</div>
-            <p className="step-desc">Write out what happened. The texts, the behavior, the thing they said that's been living rent-free in your head. No filter.</p>
+            <p className="step-desc">Write out what happened. The texts, the behavior, the thing they said that has been living rent-free in your head. No filter.</p>
           </div>
           <div className="step-card fade-up">
             <div className="step-num">02</div>
@@ -226,7 +258,7 @@ export default function Home() {
         <div className="fade-up" style={{textAlign:'center', marginBottom:'48px'}}>
           <div className="section-label" style={{display:'inline-block'}}>Example output</div>
           <h2>What a reading looks like</h2>
-          <p className="section-sub" style={{margin:'0 auto'}}>Real output. Different name. You'll recognize the feeling.</p>
+          <p className="section-sub" style={{margin:'0 auto'}}>Real output. Different name. You will recognize the feeling.</p>
         </div>
         <div className="example-wrap fade-up">
           <div className="example-header">
@@ -238,7 +270,7 @@ export default function Home() {
           </div>
           <div className="example-body">
             <div className="example-input">
-              "He texts me every day but says he doesn't want a label. He gets upset when I talk to other guys but won't commit. Last week he said I was 'the only person he trusts' then didn't reply for 3 days."
+              "He texts me every day but says he does not want a label. He gets upset when I talk to other guys but will not commit. Last week he said I was the only person he trusts then did not reply for 3 days."
             </div>
             <div className="score-meter-wrap">
               <div className="score-meter-top">
@@ -257,11 +289,11 @@ export default function Home() {
             </div>
             <div className="result-blunt">
               <div className="result-blunt-label">Blunt take</div>
-              <div className="result-blunt-text">He wants the benefits of a relationship without any of the accountability. The three-day silence after "you're the only person I trust" isn't mysterious — it's the pattern. You're not overthinking this.</div>
+              <div className="result-blunt-text">He wants the benefits of a relationship without any of the accountability. The three-day silence after you are the only person I trust is not mysterious — it is the pattern. You are not overthinking this.</div>
             </div>
             <div className="result-reality">
               <div className="result-reality-label">Reality check</div>
-              <div className="result-reality-text">This isn't a communication problem. It's a commitment problem he's outsourced to you to manage.</div>
+              <div className="result-reality-text">This is not a communication problem. It is a commitment problem he has outsourced to you to manage.</div>
             </div>
           </div>
         </div>
@@ -274,11 +306,11 @@ export default function Home() {
       <section id="app" style={{paddingTop:0}}>
         <div className="fade-up" style={{textAlign:'center', marginBottom:'48px'}}>
           <div className="section-label" style={{display:'inline-block'}}>Try it now</div>
-          <h2>What's going on?</h2>
+          <h2>What is going on?</h2>
           <p className="section-sub" style={{margin:'0 auto'}}>Tell us everything. The more specific, the more accurate your reading.</p>
         </div>
         <div className="app-section fade-up">
-          <h3>What's going on? Write it out.</h3>
+          <h3>What is going on? Write it out.</h3>
           <p>No filter. The more honest you are, the more accurate the reading.</p>
           <form id="ickForm" onSubmit={(e) => window.handleSubmit(e)} noValidate>
             <textarea id="situation" name="situation" placeholder="So we had this amazing night and then he just..." maxLength={1000} onInput={() => window.updateCount()} required></textarea>
@@ -340,7 +372,7 @@ export default function Home() {
               <div id="resultReality" className="result-reality-text">—</div>
             </div>
             <div id="proGate" className="pro-gate" style={{display:'none'}}>
-              <p className="pro-gate-text">You've used your free reading this week.</p>
+              <p className="pro-gate-text">You have used your free reading this week.</p>
               <p className="pro-gate-sub">Upgrade to Pro for unlimited readings, full pattern tracking, and history.</p>
               <button className="btn-primary-full" onClick={() => window.handleUpgrade()}>Get Pro — $6.99/month</button>
               <p style={{textAlign:'center', fontSize:'12px', color:'var(--muted)', marginTop:'10px'}}>Cancel anytime. No guilt trip.</p>
@@ -353,7 +385,7 @@ export default function Home() {
       <section id="pricing">
         <div className="fade-up">
           <div className="section-label">Pricing</div>
-          <h2>Start free.<br/>Go deeper when you're ready.</h2>
+          <h2>Start free.<br/>Go deeper when you are ready.</h2>
           <p className="section-sub">The first reading is always free. After that, $6.99/month unlocks everything.</p>
         </div>
         <div className="pricing-grid fade-up">
@@ -392,7 +424,7 @@ export default function Home() {
       </section>
 
       <p className="disclaimer fade-up">
-        The Ick Detector is not a therapist and this isn't a diagnosis. It's a mirror — what you do with what you see is up to you. If you're in a situation that feels unsafe, please talk to someone who can actually help.
+        The Ick Detector is not a therapist and this is not a diagnosis. It is a mirror — what you do with what you see is up to you. If you are in a situation that feels unsafe, please talk to someone who can actually help.
       </p>
 
       <footer>
