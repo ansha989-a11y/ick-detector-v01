@@ -6,11 +6,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
 
   async function sendLink() {
-    // ── PROMPT 3: Read `next` param from URL and pass it through the magic link ──
+    // Read `next` from the URL — e.g. /login?next=checkout
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next") || "";
+
+    // Pass `next` as a query param on the callback URL.
+    // Supabase appends tokens as a hash (#access_token=...) so the query
+    // param survives and the callback page can read it via window.location.search.
     const redirectTo = next
-      ? `${window.location.origin}/auth/callback?next=${next}`
+      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
       : `${window.location.origin}/auth/callback`;
 
     const { error } = await supabaseBrowser.auth.signInWithOtp({
