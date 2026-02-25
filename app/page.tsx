@@ -1,4 +1,19 @@
 'use client'
+declare global {
+  interface Window {
+    selectTone: (btn: HTMLElement) => void
+    selectedTone: string
+    updateCount: () => void
+    showState: (state: string) => void
+    setSubmitLoading: (isLoading: boolean) => void
+    resetForm: () => void
+    renderResult: (data: any) => void
+    handleSubmit: (e: any) => void
+    copyShareText: () => void
+    handleUpgrade: () => void
+  }
+}
+
 import { useEffect } from 'react'
 
 export default function Home() {
