@@ -24,17 +24,16 @@ export default function Home() {
   const [proLoading, setProLoading] = useState(false)
   const [freeLoading, setFreeLoading] = useState(false)
 
-  // TODO (Prompt 2): Replace this with a real check from your backend
-  // e.g. const showUpgradeCTA = !user.isPro && user.readingCount >= 1
+  // TODO: Replace with real backend check e.g. !user.isPro && user.readingCount >= 1
   const showUpgradeCTA = true
 
-  // ── PROMPT 1: Pro checkout handler — redirects to /login?next=checkout if not logged in ──
+  // ── Pro checkout: goes straight to Stripe if logged in,
+  //    or to /login?next=checkout which the callback handles automatically ──
   async function handleProCheckout() {
     setProLoading(true)
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession()
 
-      // Not logged in → send to login, preserving checkout intent
       if (!session?.access_token) {
         router.push('/login?next=checkout')
         return
@@ -64,7 +63,6 @@ export default function Home() {
     }
   }
 
-  // Free button handler
   async function handleFreeClick() {
     setFreeLoading(true)
     try {
@@ -80,7 +78,6 @@ export default function Home() {
     }
   }
 
-  // Nav login button
   async function handleNavLogin() {
     const { data: { session } } = await supabaseBrowser.auth.getSession()
     if (session) {
@@ -152,7 +149,6 @@ export default function Home() {
       btn.textContent = isLoading ? 'Analyzing…' : 'Get my Ick Score →'
     }
 
-    // RESET
     window.resetForm = function() {
       window.showState('idle')
       const ta = document.getElementById('situation') as HTMLTextAreaElement | null
@@ -168,7 +164,6 @@ export default function Home() {
       if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
 
-    // RENDER RESULT
     window.renderResult = function(data: any) {
       const set = (id: string, val: string) => {
         const el = document.getElementById(id)
@@ -196,7 +191,6 @@ export default function Home() {
       window.showState('result')
     }
 
-    // FORM SUBMIT
     window.handleSubmit = async function(e: any) {
       e.preventDefault()
       const ta = document.getElementById('situation') as HTMLTextAreaElement | null
@@ -232,7 +226,6 @@ export default function Home() {
       }
     }
 
-    // SHARE
     window.copyShareText = function() {
       const scoreEl = document.getElementById('shareScore')
       const score = scoreEl ? scoreEl.textContent : '—'
@@ -248,7 +241,6 @@ export default function Home() {
       })
     }
 
-    // UPGRADE — wires in-result pro gate to same handler
     window.handleUpgrade = function() {
       handleProCheckout()
     }
@@ -462,24 +454,16 @@ export default function Home() {
               <div id="resultReality" className="result-reality-text">—</div>
             </div>
 
-            {/* existing pro gate — shown when backend says isProGated */}
             <div id="proGate" className="pro-gate" style={{display:'none'}}>
               <p className="pro-gate-text">You have used your free reading this week.</p>
               <p className="pro-gate-sub">Upgrade to Pro for unlimited readings, full pattern tracking, and history.</p>
-              <button
-                className="btn-primary-full"
-                onClick={handleProCheckout}
-                disabled={proLoading}
-              >
+              <button className="btn-primary-full" onClick={handleProCheckout} disabled={proLoading}>
                 {proLoading ? 'Redirecting…' : 'Get Pro — $6.99/month'}
               </button>
               <p style={{textAlign:'center', fontSize:'12px', color:'var(--muted)', marginTop:'10px'}}>Cancel anytime. No guilt trip.</p>
             </div>
 
-            {/* ── PROMPT 2: Post-result upgrade CTA ──
-                TODO: Replace `showUpgradeCTA` with a real check from your backend,
-                e.g. const showUpgradeCTA = !user.isPro && user.readingCount >= 1
-                For now it is hardcoded to true so you can see and style it. */}
+            {/* TODO: Replace showUpgradeCTA with real backend check */}
             {showUpgradeCTA && (
               <div style={{
                 marginTop: '24px',
@@ -503,7 +487,6 @@ export default function Home() {
                   fontSize: '13px',
                   fontWeight: '300',
                   lineHeight: '1.6',
-                  marginBottom: '20px',
                   maxWidth: '340px',
                   margin: '0 auto 20px',
                 }}>
@@ -535,7 +518,6 @@ export default function Home() {
           <p className="section-sub">The first reading is always free. After that, $6.99/month unlocks everything.</p>
         </div>
         <div className="pricing-grid fade-up">
-
           <div className="pricing-card">
             <div className="pricing-tier">Free</div>
             <div className="pricing-price">$0</div>
@@ -549,15 +531,10 @@ export default function Home() {
               <li className="muted">Unlimited readings</li>
               <li className="muted">Reading history</li>
             </ul>
-            <button
-              className="btn-secondary"
-              onClick={handleFreeClick}
-              disabled={freeLoading}
-            >
+            <button className="btn-secondary" onClick={handleFreeClick} disabled={freeLoading}>
               {freeLoading ? 'One sec…' : 'Start free'}
             </button>
           </div>
-
           <div className="pricing-card featured">
             <div className="pricing-badge">Most popular</div>
             <div className="pricing-tier">Pro</div>
@@ -572,16 +549,10 @@ export default function Home() {
               <li>Pattern tracking over time</li>
               <li>Reading history</li>
             </ul>
-            {/* ── PROMPT 1: wired to Stripe with login?next=checkout redirect ── */}
-            <button
-              className="btn-primary-full"
-              onClick={handleProCheckout}
-              disabled={proLoading}
-            >
+            <button className="btn-primary-full" onClick={handleProCheckout} disabled={proLoading}>
               {proLoading ? 'Redirecting…' : 'Get Pro — $6.99/mo'}
             </button>
           </div>
-
         </div>
       </section>
 
