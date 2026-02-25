@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -7,10 +6,17 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
 
   async function sendLink() {
+    // ── PROMPT 3: Read `next` param from URL and pass it through the magic link ──
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next") || "";
+    const redirectTo = next
+      ? `${window.location.origin}/auth/callback?next=${next}`
+      : `${window.location.origin}/auth/callback`;
+
     const { error } = await supabaseBrowser.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: redirectTo,
       },
     });
 
@@ -21,15 +27,13 @@ export default function LoginPage() {
   return (
     <main style={{ minHeight: "100vh", padding: 24 }}>
       <h1>Login</h1>
-      <p>We’ll email you a sign-in link.</p>
-
+      <p>We'll email you a sign-in link.</p>
       <input
         style={{ padding: 12, width: "100%", maxWidth: 420, marginTop: 12 }}
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-
       <button style={{ marginTop: 12, padding: 12 }} onClick={sendLink}>
         Send login link
       </button>
