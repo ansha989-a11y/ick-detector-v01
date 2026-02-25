@@ -49,12 +49,14 @@ export default function Home() {
 
     // CHAR COUNT + DYNAMIC BUTTON
     window.updateCount = function() {
-      const ta = document.getElementById('situation')
-      const btn = document.getElementById('submitBtn')
-      const len = ta.value.length
-      document.getElementById('charCount').textContent = len
-      btn.textContent = len > 0 ? 'Analyze this →' : 'Get my Ick Score →'
-    }
+  const ta = document.getElementById('situation') as HTMLTextAreaElement | null
+  const btn = document.getElementById('submitBtn') as HTMLButtonElement | null
+  const countEl = document.getElementById('charCount')
+  if (!ta || !btn || !countEl) return
+  const len = ta.value.length
+  countEl.textContent = String(len)
+  btn.textContent = len > 0 ? 'Analyze this →' : 'Get my Ick Score →'
+}
 
     // STATE MACHINE
     window.showState = function(state) {
