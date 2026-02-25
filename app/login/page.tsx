@@ -7,7 +7,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
 
   async function sendLink() {
-    const { error } = await supabaseBrowser.auth.signInWithOtp({ email });
+    const { error } = await supabaseBrowser.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
     if (error) alert(error.message);
     else alert("Check your email for the login link.");
   }
