@@ -2,7 +2,7 @@ import './globals.css'
 
 export const metadata = {
   title: 'The Ick Detector — Finally, Clarity',
-  description: 'Describe what happened. Get an Ick Score, a pattern breakdown, and the answer you've been circling for weeks.',
+  description: "Describe what happened. Get an Ick Score, a pattern breakdown, and the answer you've been circling for weeks.",
 }
 
 export default function RootLayout({ children }) {
