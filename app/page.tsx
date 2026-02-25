@@ -24,15 +24,19 @@ export default function Home() {
   const [proLoading, setProLoading] = useState(false)
   const [freeLoading, setFreeLoading] = useState(false)
 
-  // ── PROMPT 1 + 2: Pro checkout handler ──────────────────────────
+  // TODO (Prompt 2): Replace this with a real check from your backend
+  // e.g. const showUpgradeCTA = !user.isPro && user.readingCount >= 1
+  const showUpgradeCTA = true
+
+  // ── PROMPT 1: Pro checkout handler — redirects to /login?next=checkout if not logged in ──
   async function handleProCheckout() {
     setProLoading(true)
     try {
       const { data: { session } } = await supabaseBrowser.auth.getSession()
 
-      // Not logged in → send to login
+      // Not logged in → send to login, preserving checkout intent
       if (!session?.access_token) {
-        router.push('/login')
+        router.push('/login?next=checkout')
         return
       }
 
@@ -60,7 +64,7 @@ export default function Home() {
     }
   }
 
-  // ── PROMPT 3: Free button handler ───────────────────────────────
+  // Free button handler
   async function handleFreeClick() {
     setFreeLoading(true)
     try {
@@ -76,7 +80,7 @@ export default function Home() {
     }
   }
 
-  // ── PROMPT 3: Nav login button ──────────────────────────────────
+  // Nav login button
   async function handleNavLogin() {
     const { data: { session } } = await supabaseBrowser.auth.getSession()
     if (session) {
@@ -253,7 +257,6 @@ export default function Home() {
 
   return (
     <>
-      {/* NAV — Prompt 3: Log in button added */}
       <nav>
         <div className="nav-logo">the <span>ick</span> detector.</div>
         <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
@@ -458,6 +461,8 @@ export default function Home() {
               <div className="result-reality-label">Reality check</div>
               <div id="resultReality" className="result-reality-text">—</div>
             </div>
+
+            {/* existing pro gate — shown when backend says isProGated */}
             <div id="proGate" className="pro-gate" style={{display:'none'}}>
               <p className="pro-gate-text">You have used your free reading this week.</p>
               <p className="pro-gate-sub">Upgrade to Pro for unlimited readings, full pattern tracking, and history.</p>
@@ -470,6 +475,54 @@ export default function Home() {
               </button>
               <p style={{textAlign:'center', fontSize:'12px', color:'var(--muted)', marginTop:'10px'}}>Cancel anytime. No guilt trip.</p>
             </div>
+
+            {/* ── PROMPT 2: Post-result upgrade CTA ──
+                TODO: Replace `showUpgradeCTA` with a real check from your backend,
+                e.g. const showUpgradeCTA = !user.isPro && user.readingCount >= 1
+                For now it is hardcoded to true so you can see and style it. */}
+            {showUpgradeCTA && (
+              <div style={{
+                marginTop: '24px',
+                background: 'rgba(255,47,146,0.04)',
+                border: '1px solid rgba(255,47,146,0.18)',
+                borderRadius: '12px',
+                padding: '24px 20px',
+                textAlign: 'center',
+              }}>
+                <p style={{
+                  fontFamily: 'Playfair Display, serif',
+                  fontSize: '18px',
+                  fontWeight: '700',
+                  marginBottom: '8px',
+                  letterSpacing: '-0.2px',
+                }}>
+                  Want deeper breakdowns?
+                </p>
+                <p style={{
+                  color: 'var(--chrome)',
+                  fontSize: '13px',
+                  fontWeight: '300',
+                  lineHeight: '1.6',
+                  marginBottom: '20px',
+                  maxWidth: '340px',
+                  margin: '0 auto 20px',
+                }}>
+                  Unlimited readings, full pattern breakdowns, and reality checks — whenever you need them.
+                </p>
+                <button
+                  className="btn-primary-full"
+                  onClick={handleProCheckout}
+                  disabled={proLoading}
+                  style={{maxWidth: '280px', margin: '0 auto'}}
+                >
+                  {proLoading ? 'Redirecting…' : 'Go Pro — $6.99/mo'}
+                </button>
+                <p style={{fontSize:'11px', color:'var(--muted)', marginTop:'10px'}}>
+                  Cancel anytime. No pressure.
+                </p>
+              </div>
+            )}
+
             <button className="btn-secondary" style={{marginTop:'20px'}} onClick={() => window.resetForm()}>New reading</button>
           </div>
         </div>
@@ -483,7 +536,6 @@ export default function Home() {
         </div>
         <div className="pricing-grid fade-up">
 
-          {/* FREE CARD — Prompt 3 */}
           <div className="pricing-card">
             <div className="pricing-tier">Free</div>
             <div className="pricing-price">$0</div>
@@ -506,7 +558,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* PRO CARD — Prompt 1 + 2 */}
           <div className="pricing-card featured">
             <div className="pricing-badge">Most popular</div>
             <div className="pricing-tier">Pro</div>
@@ -521,6 +572,7 @@ export default function Home() {
               <li>Pattern tracking over time</li>
               <li>Reading history</li>
             </ul>
+            {/* ── PROMPT 1: wired to Stripe with login?next=checkout redirect ── */}
             <button
               className="btn-primary-full"
               onClick={handleProCheckout}
