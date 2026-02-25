@@ -43,7 +43,7 @@ export default function Home() {
     window.selectTone = function(btn) {
       document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'))
       btn.classList.add('active')
-      window.selectedTone = btn.dataset.tone
+      window.selectedTone = btn.dataset.tone || 'blunt'
     }
     window.selectedTone = 'blunt'
 
