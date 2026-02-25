@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export default function AuthCallback() {
   const router = useRouter();
-  const params = useSearchParams();
 
   useEffect(() => {
     (async () => {
-      // Exchange link tokens for a session
+      // Exchange the email link tokens for a session
       await supabaseBrowser.auth.getSession();
 
-      const next = params.get("next");
+      // Read ?next=... from the URL (client-side only)
+      const next = new URLSearchParams(window.location.search).get("next");
 
       if (next === "checkout") {
         const { data } = await supabaseBrowser.auth.getSession();
@@ -35,7 +35,7 @@ export default function AuthCallback() {
 
       router.replace("/");
     })();
-  }, [router, params]);
+  }, [router]);
 
   return <main style={{ padding: 24 }}>Signing you in…</main>;
 }
